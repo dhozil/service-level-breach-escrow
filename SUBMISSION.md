@@ -33,11 +33,11 @@ Service-level agreements (uptime, latency, availability) where a provider posts 
 - 8/8 direct-mode unit tests (create validation, claimant-only claim + hash binding, proportional payout 70→700/300, unreachable evidence → score 0, expiry after window, expiry/settle guards, auth/address/duplicate guards, claimed-cover expiry after settle grace)
 - `genvm-lint check` + validation pass (6 methods: 2 view, 4 write)
 - On-chain verified on studionet: payable creation, funding/duplicate guards, settle-without-claim revert, expire-before-window revert, claim filing with evidence-hash match
-- Full AI-consensus integration test (leader_only=False, all methods): settle_claim tx `0x3162ed65976fdd30c0ffcbad2be18b70828e2c61ad2677dbc655e9b90318ed98` settled via validators (score 0, proportional split sums to 1000); double settle reverted; expire after window released to provider
+- Full AI-consensus integration test (leader_only=False, all methods): settle_claim tx `0xff69df660f0e7e0720e624c8933e3a964a1a7741af0d743ad5719725f6607f85` settled via validators (score 0, proportional split sums to 1000); double settle reverted; expire after window released to provider; receipt stderr is empty (no storage-read-in-nondet warning)
 
 ## Live Deployment
 Deployed on GenLayer studionet (chain `61999`):
-[`0x99A67997df00046A681b235dBD0A4b0Cf9d8434E`](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)
+[`0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9`](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9)
 
 ## Source Code
 See `contracts/service_level_breach_escrow.py`

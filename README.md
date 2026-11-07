@@ -9,7 +9,7 @@
 ![Status](https://img.shields.io/badge/status-live%20on%20studionet-2ea44f)
 ![Tests](https://img.shields.io/badge/tests-8%20passed-2ea44f)
 
-[Live Contract](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)
+[Live Contract](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9)
 
 [GenLayer Docs](https://docs.genlayer.com)
 
@@ -27,8 +27,8 @@ Reference: [GenLayer Use Cases — Markets and claims](https://docs.genlayer.com
 
 | | |
 |---|---|
-| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E) |
-| **Address** | `0x99A67997df00046A681b235dBD0A4b0Cf9d8434E` |
+| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9) |
+| **Address** | `0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9` |
 | **Network** | GenLayer studionet (chain `61999`) |
 | **Status** | Deployed + verified on-chain |
 
@@ -89,4 +89,4 @@ genvm-lint check contracts/service_level_breach_escrow.py
 ## Live Deployment
 
 Deployed on GenLayer studionet (chain `61999`):
-[`0x99A67997df00046A681b235dBD0A4b0Cf9d8434E`](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)
+[`0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9`](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9)

@@ -127,17 +127,17 @@ def _fetch_evidence(url: str) -> str:
     return raw.decode("utf-8", errors="replace")[:4000]
 
 
-def _build_breach_prompt(c: SlaCover, fetched_content: str) -> str:
+def _build_breach_prompt(c: dict, fetched_content: str) -> str:
     return f"""
 You are an SLA breach adjudicator. Score whether a service-level agreement
 was breached based on the public evidence fetched on-chain.
 
-SERVICE: {c.service_name}
-SLA TERMS: {c.sla_terms}
+SERVICE: {c['service_name']}
+SLA TERMS: {c['sla_terms']}
 
 INCIDENT SUMMARY (UNTRUSTED claim):
 --- BEGIN INCIDENT SUMMARY ---
-{c.incident_summary}
+{c['incident_summary']}
 --- END INCIDENT SUMMARY ---
 
 CONTRACT-FETCHED EVIDENCE (authoritative, fetched on-chain from the URL):
@@ -274,14 +274,19 @@ class ServiceLevelBreachEscrow(gl.Contract):
         if c.status != STATUS_CLAIMED:
             raise gl.vm.UserError("Cover has no filed claim")
 
+        # Snapshot storage into plain values BEFORE entering nondet mode.
+        # Reading a pickled storage dataclass inside nondet is not supported
+        # (UserWarning in storage.py) — the nondet functions below operate
+        # only on these plain snapshots.
         cover_dict = _cover_to_dict(c)
+        evidence_url = c.evidence_url
 
         def breach_fn() -> dict:
             try:
-                content = _fetch_evidence(c.evidence_url)
+                content = _fetch_evidence(evidence_url)
             except Exception:
                 return {"score": 0, "reasoning": "Evidence URL unreachable; scored 0."}
-            prompt = _build_breach_prompt(c, content)
+            prompt = _build_breach_prompt(cover_dict, content)
             raw_res = _exec_prompt_json(prompt)
             if not raw_res:
                 return {"score": 0, "reasoning": "Invalid response; scored 0."}
