@@ -33,6 +33,7 @@ Service-level agreements (uptime, latency, availability) where a provider posts 
 - 8/8 direct-mode unit tests (create validation, claimant-only claim + hash binding, proportional payout 70→700/300, unreachable evidence → score 0, expiry after window, expiry/settle guards, auth/address/duplicate guards, claimed-cover expiry after settle grace)
 - `genvm-lint check` + validation pass (6 methods: 2 view, 4 write)
 - On-chain verified on studionet: payable creation, funding/duplicate guards, settle-without-claim revert, expire-before-window revert, claim filing with evidence-hash match
+- Full AI-consensus integration test (leader_only=False, all methods): settle_claim tx `0x3162ed65976fdd30c0ffcbad2be18b70828e2c61ad2677dbc655e9b90318ed98` settled via validators (score 0, proportional split sums to 1000); double settle reverted; expire after window released to provider
 
 ## Live Deployment
 Deployed on GenLayer studionet (chain `61999`):
