@@ -7,9 +7,9 @@
 ![GenLayer](https://img.shields.io/badge/GenLayer-Intelligent%20Contract-6a4cff)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB)
 ![Status](https://img.shields.io/badge/status-live%20on%20studionet-2ea44f)
-![Tests](https://img.shields.io/badge/tests-6%20passed-2ea44f)
+![Tests](https://img.shields.io/badge/tests-8%20passed-2ea44f)
 
-[Live Contract](https://explorer-studio.genlayer.com/address/0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831)
+[Live Contract](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)
 
 [GenLayer Docs](https://docs.genlayer.com)
 
@@ -27,8 +27,8 @@ Reference: [GenLayer Use Cases — Markets and claims](https://docs.genlayer.com
 
 | | |
 |---|---|
-| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831) |
-| **Address** | `0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831` |
+| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E) |
+| **Address** | `0x99A67997df00046A681b235dBD0A4b0Cf9d8434E` |
 | **Network** | GenLayer studionet (chain `61999`) |
 | **Status** | Deployed + verified on-chain |
 
@@ -66,15 +66,18 @@ expire_cover (after window → provider reclaims full escrow)
 
 ## Security Model
 
+- **Caller binding (audit fix)**: only the provider (`provider == sender`) can create a cover; strangers cannot create covers in someone else's name (addresses validated as `0x` + 40 hex; provider ≠ claimant)
 - Funding invariant: actual payable value must equal the recorded amount (`Escrow funding must equal the cover total`)
 - Evidence hash-binding prevents evidence substitution after filing
 - LLM scoring with exact agreement (`SCORE_TOLERANCE = 5`), unreachable evidence → deterministic deny (score 0)
 - Payout split sums exactly to the escrow total (integer floor + remainder → no dust left behind)
+- **Anti-lock (audit fix)**: claimed covers can be aborted by anyone after `claim_deadline + 30 days` (full return to provider); open covers expire after the claim window — funds can never lock forever
+- `reasoning` is descriptive-only: it is stored as an audit note and never reused in any later consequential computation (there is no appeal path)
 
 ## Test
 
 ```bash
-gltest tests/ -q   # 6 passed
+gltest tests/ -q   # 8 passed
 ```
 
 ## Lint
@@ -86,4 +89,4 @@ genvm-lint check contracts/service_level_breach_escrow.py
 ## Live Deployment
 
 Deployed on GenLayer studionet (chain `61999`):
-[`0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831`](https://explorer-studio.genlayer.com/address/0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831)
+[`0x99A67997df00046A681b235dBD0A4b0Cf9d8434E`](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)

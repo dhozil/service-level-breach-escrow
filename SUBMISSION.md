@@ -30,13 +30,13 @@ The contract uses `gl.vm.run_nondet_unsafe()` with a custom validator for `settl
 Service-level agreements (uptime, latency, availability) where a provider posts an SLA bond and a claimant needs neutral, evidence-backed adjudication of an alleged breach with proportional compensation.
 
 ## Verification
-- 6/6 direct-mode unit tests (create validation, claimant-only claim + hash binding, proportional payout 70→700/300, unreachable evidence → score 0, expiry after window, expiry/settle guards)
+- 8/8 direct-mode unit tests (create validation, claimant-only claim + hash binding, proportional payout 70→700/300, unreachable evidence → score 0, expiry after window, expiry/settle guards, auth/address/duplicate guards, claimed-cover expiry after settle grace)
 - `genvm-lint check` + validation pass (6 methods: 2 view, 4 write)
 - On-chain verified on studionet: payable creation, funding/duplicate guards, settle-without-claim revert, expire-before-window revert, claim filing with evidence-hash match
 
 ## Live Deployment
 Deployed on GenLayer studionet (chain `61999`):
-[`0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831`](https://explorer-studio.genlayer.com/address/0x4dB91eB70Dcd547f4D6d1ba452eeFe676cabD831)
+[`0x99A67997df00046A681b235dBD0A4b0Cf9d8434E`](https://explorer-studio.genlayer.com/address/0x99A67997df00046A681b235dBD0A4b0Cf9d8434E)
 
 ## Source Code
 See `contracts/service_level_breach_escrow.py`

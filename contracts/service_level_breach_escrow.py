@@ -20,6 +20,11 @@ STATUS_CLAIMED = "claimed"
 STATUS_SETTLED = "settled"
 STATUS_RELEASED = "released"
 
+# Grace period after the claim deadline during which a claimed cover can be
+# settled. After it, anyone can force an abort that returns the full escrow
+# to the provider (bounded escape - funds cannot lock forever).
+SETTLE_GRACE_SECONDS = 2592000  # 30 days
+
 # Scores are quantized to multiples of 10; a tolerance of 5 forces
 # validators to agree on the EXACT stored score (the value that decides the
 # proportional payout) while absorbing parse-level jitter.
@@ -78,6 +83,15 @@ def _payout(recipient_hex: str, amount: u256) -> None:
     if int(amount) <= 0:
         return
     _PayableRecipient(Address(recipient_hex)).emit_transfer(value=u256(int(amount)))
+
+
+def _validate_address(addr: str) -> None:
+    s = addr.strip()
+    if len(s) != 42 or not s.startswith("0x"):
+        raise gl.vm.UserError("Invalid Ethereum address")
+    hex_part = s[2:]
+    if any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+        raise gl.vm.UserError("Invalid Ethereum address")
 
 
 @gl.evm.contract_interface
@@ -173,6 +187,12 @@ class ServiceLevelBreachEscrow(gl.Contract):
             raise gl.vm.UserError("Cover already exists")
         if not provider.strip() or not claimant.strip():
             raise gl.vm.UserError("Provider and claimant are required")
+        _validate_address(provider)
+        _validate_address(claimant)
+        if gl.message.sender_address.as_hex.lower() != provider.strip().lower():
+            raise gl.vm.UserError("Only provider can create a cover")
+        if provider.strip().lower() == claimant.strip().lower():
+            raise gl.vm.UserError("Provider and claimant must differ")
         if not service_name.strip() or not sla_terms.strip():
             raise gl.vm.UserError("Service name and SLA terms are required")
         if len(service_name.strip()) > MAX_SERVICE_CHARS:
@@ -228,6 +248,8 @@ class ServiceLevelBreachEscrow(gl.Contract):
             raise gl.vm.UserError("Claim window has closed")
         if not evidence_url.strip():
             raise gl.vm.UserError("Evidence URL is required")
+        if not evidence_url.strip().startswith("http"):
+            raise gl.vm.UserError("Evidence URL must be an http(s) URL")
         if len(evidence_url.strip()) > MAX_URL_CHARS:
             raise gl.vm.UserError("Evidence URL too long")
         if not incident_summary.strip():
@@ -320,19 +342,26 @@ class ServiceLevelBreachEscrow(gl.Contract):
 
     @gl.public.write
     def expire_cover(self, cover_id: str) -> dict:
-        """Anti-lock fallback: after the claim window with no claim, the provider
-        reclaims the full escrow."""
+        """Anti-lock fallback. Open cover: after the claim window with no
+        claim, provider reclaims full. Claimed cover: after the claim
+        deadline + settle grace with no settlement, full reclaim (bounded
+        escape if consensus never agrees)."""
         if not cover_id.strip():
             raise gl.vm.UserError("Cover id is required")
         if cover_id.strip() not in self.covers:
             raise gl.vm.UserError("Cover not found")
         c = self.covers[cover_id.strip()]
-        if c.status == STATUS_CLAIMED:
-            raise gl.vm.UserError("Claim already filed; settle instead")
-        if c.status != STATUS_OPEN:
+        if c.status != STATUS_OPEN and c.status != STATUS_CLAIMED:
             raise gl.vm.UserError("Cover is not open")
-        if datetime.now() < datetime.fromisoformat(c.claim_deadline):
-            raise gl.vm.UserError("Claim window has not passed")
+        if c.status == STATUS_CLAIMED:
+            abort_at = datetime.fromisoformat(c.claim_deadline) + timedelta(
+                seconds=SETTLE_GRACE_SECONDS
+            )
+            if datetime.now() < abort_at:
+                raise gl.vm.UserError("Claim filed; settle grace has not passed")
+        else:
+            if datetime.now() < datetime.fromisoformat(c.claim_deadline):
+                raise gl.vm.UserError("Claim window has not passed")
 
         c.status = STATUS_RELEASED
         c.provider_return = c.escrow_amount

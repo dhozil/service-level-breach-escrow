@@ -154,3 +154,41 @@ def test_expire_before_window_and_settle_without_claim_revert(direct_vm, direct_
         contract.expire_cover(cover_id=cid)
     with direct_vm.expect_revert("Cover has no filed claim"):
         contract.settle_claim(cover_id=cid)
+
+
+def test_create_cover_auth_address_and_duplicate_guards(direct_vm, direct_deploy):
+    contract = direct_deploy("contracts/service_level_breach_escrow.py")
+    stranger = create_address("stranger")
+
+    direct_vm.sender = stranger
+    direct_vm.value = AMOUNT
+    with direct_vm.expect_revert("Only provider can create a cover"):
+        contract.create_cover(cover_id="c9", provider=PROVIDER, claimant=CLAIMANT, service_name="Status API", sla_terms="Uptime >= 99.9%", escrow_amount=AMOUNT, claim_window_seconds=3600)
+
+    direct_vm.sender = PROVIDER_ADDR
+    with direct_vm.expect_revert("Invalid Ethereum address"):
+        contract.create_cover(cover_id="c9", provider="0x123", claimant=CLAIMANT, service_name="Status API", sla_terms="Uptime >= 99.9%", escrow_amount=AMOUNT, claim_window_seconds=3600)
+    with direct_vm.expect_revert("Provider and claimant must differ"):
+        contract.create_cover(cover_id="c9", provider=PROVIDER, claimant=PROVIDER, service_name="Status API", sla_terms="Uptime >= 99.9%", escrow_amount=AMOUNT, claim_window_seconds=3600)
+
+    cid = _create_cover(contract, direct_vm)
+    assert cid == COVER_ID
+    with direct_vm.expect_revert("Cover already exists"):
+        _create_cover(contract, direct_vm)
+
+
+def test_claimed_cover_expires_after_settle_grace(direct_vm, direct_deploy):
+    contract = direct_deploy("contracts/service_level_breach_escrow.py")
+    cid = _create_cover(contract, direct_vm)
+    _file_claim(contract, direct_vm)
+
+    # Before deadline + 30d grace: cannot expire a claimed cover.
+    with direct_vm.expect_revert("Claim filed; settle grace has not passed"):
+        contract.expire_cover(cover_id=cid)
+
+    direct_vm.warp((datetime.now() + timedelta(seconds=3600 + 2592000 + 3600)).isoformat())
+    res = contract.expire_cover(cover_id=cid)
+    assert bool(res.get("released")) is True
+    c = contract.get_cover(cid)
+    assert c["status"] == "released"
+    assert c["provider_return"] == AMOUNT
