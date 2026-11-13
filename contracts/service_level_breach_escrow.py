@@ -51,6 +51,7 @@ class SlaCover:
     incident_summary: str
     settled_at: str
     reasoning: str
+    evidence_content_hash: str
 
 
 def _cover_to_dict(c: SlaCover) -> dict:
@@ -72,11 +73,16 @@ def _cover_to_dict(c: SlaCover) -> dict:
         "incident_summary": c.incident_summary,
         "settled_at": c.settled_at,
         "reasoning": c.reasoning,
+        "evidence_content_hash": c.evidence_content_hash,
     }
 
 
 def _evidence_hash(evidence_url: str, incident_summary: str) -> str:
     return hashlib.sha256(f"{evidence_url}|{incident_summary}".encode()).hexdigest()
+
+
+def _content_hash(content: str) -> str:
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def _payout(recipient_hex: str, amount: u256) -> None:
@@ -230,11 +236,14 @@ class ServiceLevelBreachEscrow(gl.Contract):
             incident_summary="",
             settled_at="",
             reasoning="",
+            evidence_content_hash="",
         )
         return cover_id.strip()
 
     @gl.public.write
-    def file_claim(self, cover_id: str, evidence_url: str, incident_summary: str) -> str:
+    def file_claim(
+        self, cover_id: str, evidence_url: str, incident_summary: str, evidence_content_hash: str
+    ) -> str:
         if not cover_id.strip():
             raise gl.vm.UserError("Cover id is required")
         if cover_id.strip() not in self.covers:
@@ -256,11 +265,19 @@ class ServiceLevelBreachEscrow(gl.Contract):
             raise gl.vm.UserError("Incident summary is required")
         if len(incident_summary.strip()) > MAX_SUMMARY_CHARS:
             raise gl.vm.UserError("Incident summary too long")
+        if not evidence_content_hash.strip():
+            raise gl.vm.UserError("Evidence content hash is required")
+        ch = evidence_content_hash.strip().lower()
+        if len(ch) != 64 or any(x not in "0123456789abcdef" for x in ch):
+            raise gl.vm.UserError("Evidence content hash must be a 64-hex sha256")
 
         c.status = STATUS_CLAIMED
         c.evidence_url = evidence_url.strip()
         c.incident_summary = incident_summary.strip()
         c.evidence_hash = _evidence_hash(evidence_url.strip(), incident_summary.strip())
+        # Commit the exact evidence content (immutability boundary): settlement
+        # must match this hash, preventing substitution at the same URL.
+        c.evidence_content_hash = ch
         return cover_id.strip()
 
     @gl.public.write
@@ -275,17 +292,20 @@ class ServiceLevelBreachEscrow(gl.Contract):
             raise gl.vm.UserError("Cover has no filed claim")
 
         # Snapshot storage into plain values BEFORE entering nondet mode.
-        # Reading a pickled storage dataclass inside nondet is not supported
-        # (UserWarning in storage.py) — the nondet functions below operate
-        # only on these plain snapshots.
         cover_dict = _cover_to_dict(c)
         evidence_url = c.evidence_url
+        committed_content_hash = c.evidence_content_hash
 
         def breach_fn() -> dict:
             try:
                 content = _fetch_evidence(evidence_url)
             except Exception:
                 return {"score": 0, "reasoning": "Evidence URL unreachable; scored 0."}
+            # Enforce immutability boundary: fetched content must match the
+            # exact content hash committed at claim time (prevents substitution
+            # at the same authoritative URL before payout).
+            if _content_hash(content) != committed_content_hash:
+                return {"score": 0, "reasoning": "Evidence content substituted; does not match committed hash."}
             prompt = _build_breach_prompt(cover_dict, content)
             raw_res = _exec_prompt_json(prompt)
             if not raw_res:
@@ -310,12 +330,15 @@ class ServiceLevelBreachEscrow(gl.Contract):
             ld = leader_result.calldata
             if not isinstance(ld, dict):
                 return False
-            if "score" not in ld:
+            # Require every field consumed after consensus (including reasoning).
+            if "score" not in ld or "reasoning" not in ld:
                 return False
             ld_score = ld["score"]
             if not isinstance(ld_score, int) or ld_score % 10 != 0:
                 return False
             if ld_score < 0 or ld_score > 100:
+                return False
+            if not isinstance(ld["reasoning"], str):
                 return False
             my = breach_fn()
             if abs(my["score"] - ld_score) > SCORE_TOLERANCE:
@@ -323,7 +346,13 @@ class ServiceLevelBreachEscrow(gl.Contract):
             return True
 
         result = gl.vm.run_nondet_unsafe(breach_fn, validator_fn)
-        score = int(result["score"])
+        # Safely consume all consensus fields.
+        score = int(result.get("score", 0))
+        if score < 0:
+            score = 0
+        if score > 100:
+            score = 100
+        reasoning = str(result.get("reasoning", ""))[:MAX_REASONING_CHARS]
         total = int(c.escrow_amount)
         claimant_payout = (total * score) // 100
         provider_return = total - claimant_payout
@@ -333,7 +362,7 @@ class ServiceLevelBreachEscrow(gl.Contract):
         c.claimant_payout = u256(claimant_payout)
         c.provider_return = u256(provider_return)
         c.settled_at = str(datetime.now())
-        c.reasoning = str(result["reasoning"])
+        c.reasoning = reasoning
 
         _payout(c.claimant, u256(claimant_payout))
         _payout(c.provider, u256(provider_return))

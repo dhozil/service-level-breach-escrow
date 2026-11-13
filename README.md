@@ -7,9 +7,9 @@
 ![GenLayer](https://img.shields.io/badge/GenLayer-Intelligent%20Contract-6a4cff)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB)
 ![Status](https://img.shields.io/badge/status-live%20on%20studionet-2ea44f)
-![Tests](https://img.shields.io/badge/tests-8%20passed-2ea44f)
+![Tests](https://img.shields.io/badge/tests-10%20passed-2ea44f)
 
-[Live Contract](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9)
+[Live Contract](https://explorer-studio.genlayer.com/address/0x8eCB5f46A8c29C6456338e73BcDB9D5ae7fF16B1)
 
 [GenLayer Docs](https://docs.genlayer.com)
 
@@ -27,17 +27,18 @@ Reference: [GenLayer Use Cases — Markets and claims](https://docs.genlayer.com
 
 | | |
 |---|---|
-| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9) |
-| **Address** | `0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9` |
+| **Contract** | [ServiceLevelBreachEscrow](https://explorer-studio.genlayer.com/address/0x8eCB5f46A8c29C6456338e73BcDB9D5ae7fF16B1) |
+| **Address** | `0x8eCB5f46A8c29C6456338e73BcDB9D5ae7fF16B1` |
 | **Network** | GenLayer studionet (chain `61999`) |
 | **Status** | Deployed + verified on-chain |
 
 ## Highlights
 
 - **Proportional SLA payout**: claimant payout = `escrow_amount * breach_score // 100`; provider keeps the remainder — partial breaches pay partial compensation
-- **Hash-bound evidence**: evidence URL + incident summary are bound with `sha256(url|summary)` at claim time, so the evidence cannot be swapped later
+- **Immutability-bound evidence (steward fix)**: evidence URL + incident summary are hash-bound, and the claimant commits the **exact evidence content hash** (`sha256` of fetched content) at claim time; settlement re-fetches and rejects substitution at the same URL (score 0) if content does not match
 - **On-chain evidence fetch**: validators fetch the evidence URL from the contract, not from claimant-supplied text; unreachable evidence deterministically scores 0
-- **No fund locks**: after the claim window with no claim, `expire_cover` returns the full escrow to the provider
+- **Consensus field safety**: every field consumed after consensus (`score`, `reasoning`) is required by validators and handled safely on settlement
+- **No fund locks**: bounded escape paths for open and claimed-but-unsettled covers
 
 ## How It Works
 
@@ -45,7 +46,7 @@ Reference: [GenLayer Use Cases — Markets and claims](https://docs.genlayer.com
 create_cover (payable; provider, claimant, service, SLA terms, claim_window)
       |
       v
-file_claim (claimant only; evidence URL + summary → hash-bound)
+file_claim (claimant only; evidence URL + summary + exact content hash → committed)
       |
       v
 settle_claim (permissionless; consensus breach score 0-100 → proportional split)
@@ -59,25 +60,26 @@ expire_cover (after window → provider reclaims full escrow)
 | Role | Method | Guard |
 |---|---|---|
 | Provider | `create_cover` | payable; funding == amount; bounded inputs; unique id |
-| Claimant | `file_claim` | status open; claimant only; before deadline |
+| Claimant | `file_claim` | status open; claimant only; before deadline; commits evidence+content hashes |
 | Any | `settle_claim` | status claimed; consensus breach score; atomic split |
 | Any | `expire_cover` | status open; after claim window; no claim filed |
 | Any | `get_cover`, `get_all_covers` | read-only |
 
 ## Security Model
 
-- **Caller binding (audit fix)**: only the provider (`provider == sender`) can create a cover; strangers cannot create covers in someone else's name (addresses validated as `0x` + 40 hex; provider ≠ claimant)
+- **Caller binding**: only the provider (`provider == sender`) can create a cover (addresses validated as `0x` + 40 hex; provider ≠ claimant)
 - Funding invariant: actual payable value must equal the recorded amount (`Escrow funding must equal the cover total`)
-- Evidence hash-binding prevents evidence substitution after filing
-- LLM scoring with exact agreement (`SCORE_TOLERANCE = 5`), unreachable evidence → deterministic deny (score 0)
+- **Evidence authority & immutability boundary (steward fix)**: claim commits agreed authoritative source (URL) and binds exact evidence content via `sha256` at claim time; settlement re-fetches and deterministically scores 0 if content is substituted at the same URL before payout
+- **Consensus field safety (steward fix)**: validators require every field consumed after consensus (`score`, `reasoning`); settlement safely handles consensus fields
+- LLM scoring with exact agreement (`SCORE_TOLERANCE = 5`), unreachable/substituted evidence → deterministic deny (score 0)
 - Payout split sums exactly to the escrow total (integer floor + remainder → no dust left behind)
-- **Anti-lock (audit fix)**: claimed covers can be aborted by anyone after `claim_deadline + 30 days` (full return to provider); open covers expire after the claim window — funds can never lock forever
-- `reasoning` is descriptive-only: it is stored as an audit note and never reused in any later consequential computation (there is no appeal path)
+- **Anti-lock**: claimed covers can be aborted by anyone after `claim_deadline + 30 days` (full return to provider); open covers expire after the claim window — funds can never lock forever
+- `reasoning` is descriptive-only (audit note) and never reused in consequential computation
 
 ## Test
 
 ```bash
-gltest tests/ -q   # 8 passed
+gltest tests/ -q   # 10 passed
 ```
 
 ## Lint
@@ -89,4 +91,4 @@ genvm-lint check contracts/service_level_breach_escrow.py
 ## Live Deployment
 
 Deployed on GenLayer studionet (chain `61999`):
-[`0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9`](https://explorer-studio.genlayer.com/address/0xb3cB1b0516A35a4ebA96921Cb26fAAC447C750c9)
+[`0x8eCB5f46A8c29C6456338e73BcDB9D5ae7fF16B1`](https://explorer-studio.genlayer.com/address/0x8eCB5f46A8c29C6456338e73BcDB9D5ae7fF16B1)
